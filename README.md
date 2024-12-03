@@ -21,6 +21,7 @@ config.json and data.db will be generated on the first run.
 | 5     | Delete a participant from the database                                     |
 | 6     | Prune empty rows from the database                                         |
 | 7     | Clear the database                                                         |
+| 8     | Generate a beamer (LaTeX class) presentation                               |
 | 0     | Display the menu options                                                   |
 | -     | Exit the program                                                           |
 

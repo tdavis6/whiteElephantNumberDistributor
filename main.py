@@ -27,7 +27,7 @@ else:
 if not os.path.exists(csvfile):
     print("CSV file not found, creating a new one with headers [name, email, number].")
     with open(csvfile, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, quoting=csv.QUOTE_NONE, escapechar='\\')
         writer.writerow(["name", "email", "number"])  # Initialize headers
 else:
     print("CSV file found")
@@ -60,6 +60,7 @@ smtpPort = config['smtpPort']
 smtpPassword = config['smtpPassword']
 fromAddress = config['fromAddress']  # actual email from config
 
+
 # -------------------
 # Helper Functions
 # -------------------
@@ -68,24 +69,35 @@ def read_csv_data() -> list:
     """
     Reads and returns CSV data as a list of dicts:
     [{'name': ..., 'email': ..., 'number': ...}, ...].
+
+    Also removes any leftover quote characters within each field.
     """
     rows = []
     with open(csvfile, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
+        # Use QUOTE_MINIMAL or none. If your CSV is in messy format,
+        # you might need to experiment with how it is read.
+        reader = csv.DictReader(f, escapechar='\\', quoting=csv.QUOTE_MINIMAL)
         for row in reader:
+            # Remove all quote characters from each field just in case
+            for key in row:
+                if row[key]:
+                    # Strip both leading/trailing quotes and replace any internal quotes
+                    row[key] = row[key].replace('"', '').strip()
             rows.append(row)
     return rows
+
 
 def write_csv_data(data: list):
     """
     Writes the given list of dicts back to the CSV file
-    with columns name, email, number.
+    with columns name, email, number, without adding quotes.
     """
     with open(csvfile, mode='w', newline='', encoding='utf-8') as f:
         fieldnames = ["name", "email", "number"]
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_NONE, escapechar='\\')
         writer.writeheader()
         writer.writerows(data)
+
 
 def clearCSV():
     """
@@ -93,9 +105,10 @@ def clearCSV():
     """
     print("Clearing CSV data...")
     with open(csvfile, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, quoting=csv.QUOTE_NONE, escapechar='\\')
         writer.writerow(["name", "email", "number"])
     print("CSV cleared.")
+
 
 def listCurrentParticipants():
     data = read_csv_data()
@@ -108,6 +121,7 @@ def listCurrentParticipants():
             email = row.get('email', '')
             print(f"  {name} | {email}")
     print()
+
 
 def gatherNewParticipants():
     """
@@ -123,6 +137,7 @@ def gatherNewParticipants():
         data.append({"name": name, "email": email, "number": ""})
         print(f"Added {name} with email {email}\n")
     write_csv_data(data)
+
 
 def assignNumbers():
     """
@@ -141,6 +156,7 @@ def assignNumbers():
 
     write_csv_data(data)
     print("Numbers assigned successfully.\n")
+
 
 def emailNumbers():
     """
@@ -170,22 +186,22 @@ def emailNumbers():
 
     fullNumberList = "\n".join(f"{row['number']}: {row['name']}" for row in data)
 
-    # Create custom from field, e.g., "White Elephant Numbers" <actualEmailAddress>
-    from_field = f"\"White Elephant Numbers\" <{fromAddress}>"
+    # Remove extra quotes around the "From" field
+    from_field = f"White Elephant Numbers <{fromAddress}>"
 
-    message_individual = f"""From: {from_field}
-To: {{email}}
+    message_individual = """From: {from_field}
+To: {email}
 Subject: White Elephant Number
 
-{{p_name}}, your number for White Elephant is {{p_num}}!
+{p_name}, your number for White Elephant is {p_num}!
 """
 
-    message_full_list = f"""From: {from_field}
-To: {{email}}
+    message_full_list = """From: {from_field}
+To: {email}
 Subject: Full list of White Elephant Numbers
 
 See below for the full list of numbers:
-{{list_content}}
+{list_content}
 """
 
     context = ssl.create_default_context()
@@ -200,7 +216,11 @@ See below for the full list of numbers:
                 server.sendmail(
                     fromAddress,
                     first_email,
-                    message_full_list.format(email=first_email, list_content=fullNumberList)
+                    message_full_list.format(
+                        from_field=from_field,
+                        email=first_email,
+                        list_content=fullNumberList
+                    )
                 )
                 print(f"Full Number List sent to {first_name} at {first_email}")
 
@@ -213,7 +233,12 @@ See below for the full list of numbers:
                     server.sendmail(
                         fromAddress,
                         email,
-                        message_individual.format(p_name=name, email=email, p_num=number)
+                        message_individual.format(
+                            from_field=from_field,
+                            p_name=name,
+                            email=email,
+                            p_num=number
+                        )
                     )
                     print(f"Email sent to {name} at {email}")
                 except Exception as e:
@@ -221,6 +246,7 @@ See below for the full list of numbers:
         print()
     except Exception as e:
         print(f"SMTP error occurred: {e}\n")
+
 
 def deleteParticipant():
     data = read_csv_data()
@@ -242,6 +268,7 @@ def deleteParticipant():
     write_csv_data(data)
     print()
 
+
 def pruneParticipants():
     """
     Removes entries from the CSV that have empty or null name fields.
@@ -256,6 +283,7 @@ def pruneParticipants():
     after_count = len(data)
     write_csv_data(data)
     print(f"Pruned {before_count - after_count} empty entries.\n")
+
 
 def createBeamerPresentation():
     """
@@ -347,6 +375,7 @@ def createBeamerPresentation():
         if os.path.exists(file):
             os.remove(file)
 
+
 # -------------------
 # Menu
 # -------------------
@@ -367,6 +396,7 @@ def printMenu():
     for k, v in menu.items():
         print(k, v)
     print()
+
 
 # -------------------
 # Main Loop
